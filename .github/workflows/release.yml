@@ -49,6 +49,9 @@ jobs:
       - name: Build wheel
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
+          # setuptools-scm runs git introspection for the version; the container
+          # checkout is owned by a different uid, so mark it safe first
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           # Need wheel>=0.40 for the 'tags' subcommand (Ubuntu ships 0.37)
           pip3 install build setuptools 'wheel>=0.40'
           bash scripts/build_wheel.sh
