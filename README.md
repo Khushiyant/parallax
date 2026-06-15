@@ -3,7 +3,11 @@
 
 Differential debugger for CUDA and Triton GPU kernels.
 
-Run your kernel twice with different inputs (or a known-good vs buggy version). PRLX instruments every branch, captures per-warp execution traces, and diffs them — telling you exactly which warp diverged, at which instruction, and what each lane saw:
+Most GPU tools tell you *that* a kernel went wrong. PRLX tells you *where two runs
+diverged and why*. Run a kernel twice (two inputs, or a known-good version against
+a buggy one) and PRLX instruments every branch, records a per-warp execution trace,
+and diffs them: the exact warp that diverged, the instruction it diverged at, and
+the operands every lane saw.
 
 ```
 Site 0xfbe6edc1  (branch_kernel:12)  2 warps affected
@@ -19,40 +23,60 @@ Site 0xfbe6edc1  (branch_kernel:12)  2 warps affected
       ...
 ```
 
-The threshold changed from 10 to 64. Lanes 0–31 compared their value against the threshold; in run A they all passed, in run B they didn't. That's the bug.
+The threshold changed from 10 to 64. Lanes 0 to 31 compared their value against it;
+in run A they all passed, in run B they didn't. That's the bug, found in one diff.
+
+## Why PRLX
+
+- **Run-vs-run, down to the lane.** Profilers show aggregate stats and `cuda-gdb`
+  inspects one run. PRLX compares two executions at per-warp, per-instruction,
+  per-lane operand granularity.
+- **CUDA, Triton, and PyTorch.** Instruments hand-written CUDA C, Triton kernels
+  (via the compiler hook, no kernel changes), and `torch.compile` / inline extensions.
+- **CI-ready.** Gate a build on "did this kernel start behaving differently than the
+  golden run" with a single `prlx assert`.
+- **NVIDIA and AMD.** One pass covers NVPTX and AMDGPU; one trace format covers both.
 
 ## Install
 
-```bash
-pip install prlx
-```
-
-Needs CUDA 12+ and LLVM 18/19/20 on the host (for `prlx compile` and Triton integration). The differ and Python trace reader have no external deps.
-
-<details>
-<summary>From source (NVIDIA)</summary>
+Build from source (NVIDIA). Requires CUDA 12+, LLVM/Clang 18-20, Rust, and CMake 3.20+:
 
 ```bash
-cmake -B build && cmake --build build
-cd differ && cargo build --release && cd ..
+cmake -B build && cmake --build build     # LLVM pass + CUDA runtime
+(cd differ && cargo build --release)       # the differ
 pip install -e .
 ```
 
-Build deps: CMake 3.20+, LLVM/Clang 18–20, CUDA Toolkit, Rust stable.
-</details>
+The differ and the pure-Python trace reader have no external dependencies. The
+LLVM pass and Triton integration additionally need `opt`/`llvm-link` (LLVM 18-20)
+on your `PATH`.
 
 <details>
-<summary>From source (AMD ROCm)</summary>
+<summary>AMD ROCm</summary>
 
 ```bash
 cmake -B build -DPRLX_ENABLE_CUDA=OFF -DPRLX_ENABLE_HIP=ON
 cmake --build build
-cd differ && cargo build --release && cd ..
+(cd differ && cargo build --release)
 pip install -e .
 ```
 
-Build deps: CMake 3.20+, LLVM/Clang 18–20, ROCm 5.0+, Rust stable.
-The LLVM pass supports AMDGPU targets. The HIP runtime targets wave32 (RDNA) GPUs.
+Build deps: CMake 3.20+, LLVM/Clang 18-20, ROCm 5.0+, Rust stable.
+The LLVM pass supports AMDGPU targets; the HIP runtime targets wave32 (RDNA) GPUs.
+</details>
+
+<details>
+<summary>Prebuilt wheel</summary>
+
+`scripts/build_wheel.sh` compiles the passes, runtime, and differ and bundles them
+into a platform wheel, so installing it needs no build toolchain:
+
+```bash
+bash scripts/build_wheel.sh
+pip install dist/*.whl
+```
+
+(The Triton path still expects `opt`/`llvm-link` on `PATH`.)
 </details>
 
 ## Usage
@@ -70,7 +94,7 @@ prlx diff a.prlx b.prlx
 
 ```python
 import prlx
-prlx.enable()  # hooks the Triton compiler — no kernel changes needed
+prlx.enable()  # hooks the Triton compiler; no kernel changes needed
 
 import os, triton
 
@@ -235,27 +259,28 @@ Open `divergences.json` in `chrome://tracing` or [ui.perfetto.dev](https://ui.pe
 
 PRLX has three backends for instrumenting GPU code:
 
-1. **LLVM pass** (`lib/pass/`) — loaded as `-fpass-plugin` during compilation (clang) or injected between Triton's `make_llir` and `make_ptx` stages. Walks NVPTX or AMDGPU IR, inserts calls to `__prlx_record_branch` / `__prlx_record_value` at every branch and comparison. For Triton's branchless single-BB kernels, it detects predicated ops (`icmp` feeding inline PTX asm or `select`). Supports both NVIDIA (NVPTX) and AMD (AMDGPU) targets.
+1. **LLVM pass** (`lib/pass/`): loaded as `-fpass-plugin` during compilation (clang) or injected between Triton's `make_llir` and `make_ptx` stages. Walks NVPTX or AMDGPU IR and inserts calls to `__prlx_record_branch` / `__prlx_record_value` at every branch and comparison. For Triton's branchless single-BB kernels it detects predicated ops (`icmp` feeding inline PTX asm or `select`). Supports both NVIDIA (NVPTX) and AMD (AMDGPU) targets.
 
-2. **NVBit tool** (`lib/nvbit_tool/`) _(experimental)_ — SASS-level binary instrumentation via NVBit. Works on closed-source kernels where you don't have IR access. Less tested than the LLVM pass; use for cases where recompilation is not possible.
+2. **NVBit tool** (`lib/nvbit_tool/`) _(experimental)_: SASS-level binary instrumentation via NVBit. Works on closed-source kernels where you don't have IR access. Less tested than the LLVM pass; use it when recompilation is not possible.
 
-3. **Runtime** (`lib/runtime/`) — device-side ring buffers (one per warp) that record events, value history, and per-lane comparison operand snapshots. Host hooks (`prlx_pre_launch` / `prlx_post_launch`) manage allocation and readback.
+3. **Runtime** (`lib/runtime/`): device-side ring buffers (one per warp) that record events, value history, and per-lane comparison operand snapshots. Host hooks (`prlx_pre_launch` / `prlx_post_launch`) manage allocation and readback.
 
-Traces are written to `.prlx` files (custom binary format, optionally zstd-compressed). The **differ** (`differ/`, Rust) aligns event streams with bounded lookahead, classifies divergences (branch direction, path length, missing events), and can display per-lane operand diffs.
+Traces are written to `.prlx` files (a compact binary format, optionally zstd-compressed). The **differ** (`differ/`, Rust) aligns event streams with bounded lookahead, classifies divergences (branch direction, path length, missing events), and can display per-lane operand diffs.
 
 ## Layout
 
 ```
-lib/pass/           LLVM instrumentation pass (libPrlxPass.so) — NVPTX + AMDGPU
+lib/pass/           LLVM instrumentation pass (libPrlxPass.so), NVPTX + AMDGPU
 lib/runtime/        device-side recording + host hooks (CUDA + HIP)
 lib/nvbit_tool/     NVBit binary instrumentation backend (experimental)
 lib/common/         shared trace format header
 differ/             Rust differ + TUI + JSON/flamegraph export (prlx-diff)
 python/prlx/        trace reader, Triton hook, PyTorch hook, runtime FFI, CLI
 examples/           demo kernels (branch, loop, matmul, occupancy)
-tools/              utilities (gen_demo_traces.py — synthetic trace generator)
+tools/              utilities (gen_demo_traces.py, synthetic trace generator)
 ```
 
 ## License
 
 MIT
+</content>

@@ -1,4 +1,4 @@
-"""PRLX CLI — console entry point for the GPU differential debugger."""
+"""PRLX CLI, console entry point for the GPU differential debugger."""
 
 import argparse
 import json
@@ -28,7 +28,7 @@ PRLX_BANNER = r"""
 |  __/|  _ <| |___  /  \
 |_|   |_| \_\_____|/_/\_\  v{version}
 
-PRLX — GPU Differential Debugger
+PRLX, GPU Differential Debugger
 {gpu_line}
 """
 
@@ -214,7 +214,7 @@ def cmd_diff(args):
                 b_mtime = trace_b.stat().st_mtime
                 if map_mtime < min(a_mtime, b_mtime):
                     print(
-                        "Warning: Site map is older than both traces — "
+                        "Warning: Site map is older than both traces, "
                         "it may be stale. Recompile or pass --map explicitly.",
                         file=sys.stderr,
                     )
@@ -646,7 +646,7 @@ def cmd_assert(args):
 
     threshold = args.max_divergences
 
-    # Build prlx-diff command — always request JSON for structured output
+    # Build prlx-diff command, always request JSON for structured output
     cmd = [str(differ), str(trace_a), str(trace_b), "--json"]
 
     if threshold > 0:

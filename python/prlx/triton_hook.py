@@ -236,7 +236,7 @@ def _wrap_triton_launch(verbose: bool):
         kernel_name = getattr(self, "__name__", "triton_kernel")
 
         runtime.pre_launch(kernel_name, grid_dim, block_dim)
-        # Invalidate binder cache — pre_launch allocated new buffers
+        # Invalidate binder cache, pre_launch allocated new buffers
         binder.invalidate()
         result = _original_launch(self, *args, **kwargs)
         runtime.post_launch()

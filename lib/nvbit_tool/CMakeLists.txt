@@ -17,9 +17,10 @@ if(PRLX_NVBIT_PATH AND EXISTS "${PRLX_NVBIT_PATH}/core/nvbit.h")
     message(STATUS "Using NVBit SDK at: ${PRLX_NVBIT_PATH}")
     set(NVBIT_ROOT "${PRLX_NVBIT_PATH}")
 else()
-    # Try to download NVBit 1.7.7.1 release (supports up to SM_120 / Blackwell)
+    # NVBit 1.8 — verified to ship Blackwell/sm_120 instruction decoders
+    # (1.7.7.1 showed no Blackwell symbols; 1.8's libnvbit.a has TMASupport::Blackwell etc.)
     include(FetchContent)
-    set(NVBIT_VERSION "1.7.7.1")
+    set(NVBIT_VERSION "1.8")
     set(NVBIT_URL "https://github.com/NVlabs/NVBit/releases/download/v${NVBIT_VERSION}/nvbit-Linux-x86_64-${NVBIT_VERSION}.tar.bz2")
 
     FetchContent_Declare(

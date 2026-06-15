@@ -367,13 +367,9 @@ class TestSnapshotSection:
 
 
 class TestBinaryFormat:
-    def test_header_size_is_160(self):
+    def test_struct_sizes(self):
         assert struct.calcsize(_HEADER_FMT) == 160
-
-    def test_event_size_is_16(self):
         assert struct.calcsize(_EVENT_FMT) == 16
-
-    def test_warp_header_size_is_16(self):
         assert struct.calcsize(_WARP_HEADER_FMT) == 16
 
     def test_header_field_offsets(self, trace_builder):

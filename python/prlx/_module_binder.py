@@ -95,7 +95,7 @@ class ModuleBinder:
         from . import _hip_driver as hip
 
         # HIP does not expose hipFuncGetModule; the function handle IS the
-        # module in Triton's HIP backend — pass it directly.
+        # module in Triton's HIP backend, pass it directly.
         hip_module = hip_function
         if hip_module in self._bound_modules:
             return

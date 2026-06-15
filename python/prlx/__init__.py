@@ -59,9 +59,9 @@ def enable_pytorch(**kwargs):
     """Hook into PyTorch for GPU kernel instrumentation.
 
     Three-tier strategy:
-      Tier 1 — Triton via torch.compile (instrument_triton=True)
-      Tier 2 — load_inline hook (instrument_extensions=True)
-      Tier 3 — NVBit fallback (nvbit_precompiled=False)
+      Tier 1, Triton via torch.compile (instrument_triton=True)
+      Tier 2, load_inline hook (instrument_extensions=True)
+      Tier 3, NVBit fallback (nvbit_precompiled=False)
     """
     from .pytorch_hook import install
     install(**kwargs)

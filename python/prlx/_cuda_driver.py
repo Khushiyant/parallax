@@ -100,7 +100,7 @@ def write_device_global_ptr(cu_module: int, name: str, device_ptr: int):
         device_ptr: The device pointer value to write.
     """
     dptr, size = cuModuleGetGlobal(cu_module, name)
-    # The global is a pointer — 8 bytes on 64-bit
+    # The global is a pointer, 8 bytes on 64-bit
     val = ctypes.c_uint64(device_ptr)
     cuMemcpyHtoD(dptr, ctypes.byref(val), 8)
 

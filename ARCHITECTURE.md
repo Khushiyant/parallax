@@ -3,7 +3,7 @@
 ## Overview
 
 PRLX is a differential debugger for GPU kernels. It answers the question:
-*"I ran my kernel twice with different inputs — where exactly did execution diverge, and why?"*
+*"I ran my kernel twice with different inputs, where exactly did execution diverge, and why?"*
 
 It works by instrumenting GPU code at compile time, recording per-warp
 execution traces at runtime, and then diffing two traces offline.
@@ -122,7 +122,7 @@ NVPTX or AMDGPU IR (the intermediate representation for GPU device code).
 
 **Key design decisions:**
 - Uses `getOrDeclare()` to avoid LLVM auto-renaming duplicate declarations
-- Must NOT link LLVM static libs (LLVMCore, etc.) — causes symbol conflicts
+- Must NOT link LLVM static libs (LLVMCore, etc.), causes symbol conflicts
 - Detects Triton's branchless kernels: `icmp` feeding inline PTX asm
   predicates (`@$2 ld.global.b32`) is treated as equivalent to a branch
 
@@ -134,7 +134,7 @@ to source locations.
 Two halves: device-side recording functions and host-side lifecycle hooks.
 Separate implementations for CUDA and HIP (AMD ROCm).
 
-**Device side — CUDA** (`prlx_runtime.cu`):
+**Device side, CUDA** (`prlx_runtime.cu`):
 - Recording functions called by instrumented code
 - Each function: computes warp index, atomically claims a slot in the
   per-warp ring buffer, writes a 16-byte `TraceEvent`
@@ -144,7 +144,7 @@ Separate implementations for CUDA and HIP (AMD ROCm).
   collect both comparison operands from all 32 lanes without branches
 - History recording: writes to a separate ring buffer for time-travel context
 
-**Device side — HIP** (`prlx_runtime_hip.cpp`):
+**Device side, HIP** (`prlx_runtime_hip.cpp`):
 - Same recording functions with AMD intrinsic replacements:
   - `__activemask()` -> `__ballot(1)`
   - `__shfl_sync(mask, val, src)` -> `__shfl(val, src)`
@@ -152,14 +152,14 @@ Separate implementations for CUDA and HIP (AMD ROCm).
   - Cache-bypass stores: volatile stores (instead of PTX `st.global.cg`)
 - Targets wave32 (RDNA GPUs). Wave64 (CDNA) deferred.
 
-**Host side — CUDA** (`prlx_host.cu`):
+**Host side, CUDA** (`prlx_host.cu`):
 - `prlx_pre_launch()`: allocates GPU memory for all buffers, writes header,
   sets device globals via `cudaMemcpyToSymbol`
 - `prlx_post_launch()`: syncs device, copies buffers to host, writes `.prlx`
   file, frees GPU memory
 - Session API: captures multiple kernel launches into a directory with manifest
 
-**Host side — HIP** (`prlx_host_hip.cpp`):
+**Host side, HIP** (`prlx_host_hip.cpp`):
 - Mirrors CUDA host side with `hip*` API calls (`hipMalloc`, `hipMemcpy`,
   `hipMemcpyToSymbol(HIP_SYMBOL(...))`, `hipFree`, etc.)
 
@@ -236,13 +236,13 @@ User-facing interface, Triton integration, and PyTorch integration.
 **PyTorch hook** (`pytorch_hook.py`):
 Three-tier instrumentation for PyTorch workloads:
 
-- **Tier 1 — Triton via torch.compile**: Delegates to `triton_hook.install()`.
+- **Tier 1, Triton via torch.compile**: Delegates to `triton_hook.install()`.
   Instruments kernels compiled through `torch.compile` / Inductor.
-- **Tier 2 — load_inline hook**: Monkey-patches
+- **Tier 2, load_inline hook**: Monkey-patches
   `torch.utils.cpp_extension.load_inline` to inject `-fpass-plugin=libPrlxPass.so`
   into `extra_cuda_cflags` and link the runtime library via `extra_ldflags`.
   Only works when extension code is clang-compatible.
-- **Tier 3 — NVBit fallback**: Sets `LD_PRELOAD=libprlx_nvbit.so` for
+- **Tier 3, NVBit fallback**: Sets `LD_PRELOAD=libprlx_nvbit.so` for
   SASS-level binary instrumentation of pre-compiled CUDA ops. Must be
   configured before CUDA context creation.
 
@@ -265,9 +265,9 @@ Conditional multi-platform build:
   `prlx_runtime_shared`), NVPTX bitcode, and examples
 - `PRLX_ENABLE_HIP` (default OFF): Builds HIP runtime (`prlx_runtime_hip`)
   with `find_package(hip)` and ROCm SDK detection
-- The LLVM pass (`libPrlxPass.so`) is always built — it handles both NVPTX
+- The LLVM pass (`libPrlxPass.so`) is always built, it handles both NVPTX
   and AMDGPU targets at runtime via `getGPUTarget()`
-- The differ (`prlx-diff`) is target-agnostic — trace format is the same
+- The differ (`prlx-diff`) is target-agnostic, trace format is the same
   regardless of GPU vendor
 
 ## Trace File Format (`.prlx`)
@@ -374,7 +374,7 @@ density. Sparse traces (most warps idle) compress very well.
 ### Sampling Trade-off
 
 `PRLX_SAMPLE_RATE=N` records 1 in every N events. This does NOT reduce
-buffer allocation — buffers are pre-allocated at full size. What it does:
+buffer allocation, buffers are pre-allocated at full size. What it does:
 - Reduces `write_idx` advancement rate -> fewer overflow drops
 - Makes traces sparser -> better compression ratio
 - Loses fine-grained event ordering within a warp

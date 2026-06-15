@@ -23,7 +23,7 @@ class TestSessionAutoDetect:
         session_a.mkdir()
         session_b.mkdir()
 
-        # cmd_diff calls the differ binary via subprocess — mock it
+        # cmd_diff calls the differ binary via subprocess, mock it
         with mock.patch("prlx.cli._find_lib") as mock_find:
             mock_find.find_differ_binary.return_value = "/usr/bin/false"
             with mock.patch("subprocess.call") as mock_call:

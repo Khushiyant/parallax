@@ -36,13 +36,13 @@ def plot_warp_timeline(
     fig, ax = plt.subplots(figsize=(14, max(4, len(warps) * 0.3)))
 
     color_map = {
-        0: "#e6b800",  # Branch — yellow
-        1: "#cc44cc",  # SharedMemStore — magenta
-        2: "#4488cc",  # Atomic — blue
-        3: "#44cc44",  # FuncEntry — green
-        4: "#88cc88",  # FuncExit — light green
-        5: "#cc8844",  # Switch — orange
-        6: "#cc4444",  # GlobalStore — red
+        0: "#e6b800",  # Branch, yellow
+        1: "#cc44cc",  # SharedMemStore, magenta
+        2: "#4488cc",  # Atomic, blue
+        3: "#44cc44",  # FuncEntry, green
+        4: "#88cc88",  # FuncExit, light green
+        5: "#cc8844",  # Switch, orange
+        6: "#cc4444",  # GlobalStore, red
     }
 
     for w in warps:
@@ -59,7 +59,7 @@ def plot_warp_timeline(
 
     ax.set_xlabel("Event index")
     ax.set_ylabel("Warp index")
-    ax.set_title(f"Warp timeline — {trace.header.kernel_name}")
+    ax.set_title(f"Warp timeline, {trace.header.kernel_name}")
     ax.invert_yaxis()
     fig.tight_layout()
     return fig

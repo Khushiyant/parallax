@@ -2,10 +2,10 @@
 PyTorch integration for prlx.
 
 Three-tier instrumentation strategy:
-  Tier 1 — Triton via torch.compile: Delegate to triton_hook.install().
-  Tier 2 — load_inline hook: Monkey-patch torch.utils.cpp_extension.load_inline
+  Tier 1, Triton via torch.compile: Delegate to triton_hook.install().
+  Tier 2, load_inline hook: Monkey-patch torch.utils.cpp_extension.load_inline
            to inject -fpass-plugin=libPrlxPass.so into extra_cuda_cflags.
-  Tier 3 — NVBit fallback: Set LD_PRELOAD=libprlx_nvbit.so for SASS-level
+  Tier 3, NVBit fallback: Set LD_PRELOAD=libprlx_nvbit.so for SASS-level
            binary instrumentation.
 
 Requires PyTorch >= 2.0.
