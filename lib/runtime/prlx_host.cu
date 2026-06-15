@@ -375,7 +375,11 @@ extern "C" void prlx_post_launch(void) {
         session_entry_count++;
         session_launch_count++;
     } else {
-        strncpy(effective_path, output_path, sizeof(effective_path) - 1);
+        // Re-read PRLX_TRACE here so it can change between launches in the same
+        // process (e.g. capturing run A then run B from one Python session).
+        const char* env_path = getenv("PRLX_TRACE");
+        const char* path = (env_path && env_path[0]) ? env_path : output_path;
+        strncpy(effective_path, path, sizeof(effective_path) - 1);
         effective_path[sizeof(effective_path) - 1] = '\0';
     }
 

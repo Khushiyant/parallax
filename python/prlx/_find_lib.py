@@ -24,19 +24,19 @@ def _project_root() -> Optional[Path]:
 
 
 def _detect_llvm_version() -> Optional[int]:
-    for name in ("opt-20", "opt-19", "opt-18", "opt"):
-        path = shutil.which(name)
-        if path:
-            try:
-                result = subprocess.run(
-                    [path, "--version"], capture_output=True, text=True, timeout=5,
-                )
-                for line in result.stdout.splitlines():
-                    m = re.search(r"(\d+)\.\d+", line)
-                    if m:
-                        return int(m.group(1))
-            except (subprocess.SubprocessError, OSError):
-                continue
+    opt = find_opt_binary()
+    if opt is None:
+        return None
+    try:
+        result = subprocess.run(
+            [str(opt), "--version"], capture_output=True, text=True, timeout=5,
+        )
+        for line in result.stdout.splitlines():
+            m = re.search(r"(\d+)\.\d+", line)
+            if m:
+                return int(m.group(1))
+    except (subprocess.SubprocessError, OSError):
+        pass
     return None
 
 
@@ -166,6 +166,11 @@ def find_opt_binary() -> Optional[Path]:
         path = shutil.which(name)
         if path:
             return Path(path)
+    # apt.llvm.org installs to /usr/lib/llvm-N/bin without adding it to PATH
+    for v in (20, 19, 18):
+        p = Path(f"/usr/lib/llvm-{v}/bin/opt")
+        if p.exists():
+            return p
     return None
 
 
@@ -174,6 +179,10 @@ def find_llvm_link_binary() -> Optional[Path]:
         path = shutil.which(name)
         if path:
             return Path(path)
+    for v in (20, 19, 18):
+        p = Path(f"/usr/lib/llvm-{v}/bin/llvm-link")
+        if p.exists():
+            return p
     return None
 
 

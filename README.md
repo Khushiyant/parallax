@@ -51,20 +51,20 @@ Trace analysis works out of the box on Linux x86_64 with no other dependencies:
 Instrumenting and recording kernels needs a few prerequisites on the machine:
 
 - A **CUDA GPU**.
-- **LLVM 18, 19, or 20** with `opt` and `llvm-link` on your `PATH`. On Ubuntu/Debian:
+- **LLVM 18, 19, or 20**. On Ubuntu/Debian:
 
   ```bash
   wget https://apt.llvm.org/llvm.sh
   chmod +x llvm.sh && sudo ./llvm.sh 20
-  export PATH="/usr/lib/llvm-20/bin:$PATH"   # so opt / llvm-link are found
-  opt --version                               # should report 20.x
   ```
 
+  prlx finds `opt`/`llvm-link` automatically (on `PATH` or under `/usr/lib/llvm-NN/bin`).
 - **Triton / PyTorch** kernels: `pip install "prlx[pytorch]"` (and `triton` if you use it directly).
-- The hand-written **CUDA C** path (`prlx compile`): the **CUDA toolkit** (`nvcc`).
+  The CUDA runtime that capture needs (`libcudart`) is picked up automatically from torch.
+- The hand-written **CUDA C** path (`prlx compile`) additionally needs the **CUDA toolkit** (`nvcc`).
 
-> LLVM is a manual prerequisite for capture today. Bundling it so `pip install` is
-> fully self-contained is planned.
+> LLVM is the one manual prerequisite for capture today. Bundling it so `pip install`
+> is fully self-contained is planned.
 
 <details>
 <summary>Build from source</summary>

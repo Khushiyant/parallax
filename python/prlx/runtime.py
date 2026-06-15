@@ -9,6 +9,33 @@ from typing import Optional, Tuple
 from ._find_lib import find_runtime_library
 
 
+def _preload_cuda_runtime():
+    """Make libcudart loadable without LD_LIBRARY_PATH by preloading the copy
+    that ships with torch or the nvidia-cuda-runtime pip package. The shared
+    runtime links libcudart.so.12; loading it RTLD_GLOBAL here satisfies that
+    dependency by soname, so most users (who have torch) need no env setup."""
+    import glob
+    dirs = []
+    try:
+        import nvidia.cuda_runtime as _cr
+        dirs.append(os.path.join(os.path.dirname(_cr.__file__), "lib"))
+    except Exception:
+        pass
+    try:
+        import torch
+        dirs.append(os.path.join(os.path.dirname(torch.__file__), "lib"))
+    except Exception:
+        pass
+    for d in dirs:
+        for so in sorted(glob.glob(os.path.join(d, "libcudart.so*"))):
+            try:
+                ctypes.CDLL(so, mode=ctypes.RTLD_GLOBAL)
+                return so
+            except OSError:
+                continue
+    return None
+
+
 class Dim3(ctypes.Structure):
     _fields_ = [("x", ctypes.c_uint), ("y", ctypes.c_uint), ("z", ctypes.c_uint)]
 
@@ -25,6 +52,7 @@ class PrlxRuntime:
                 )
             lib_path = str(found)
 
+        _preload_cuda_runtime()
         self._lib = ctypes.CDLL(lib_path)
         self._setup_functions()
         self._initialized = False

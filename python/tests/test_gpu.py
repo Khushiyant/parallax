@@ -20,6 +20,38 @@ except Exception:
 
 pytestmark = pytest.mark.skipif(not _HAS_GPU, reason="no CUDA GPU available")
 
+# Triton kernels are defined at module level so Triton's source inspection
+# (inspect.getsource) is reliable; @triton.jit nested inside a test is flaky.
+try:
+    import triton as _triton
+    import triton.language as tl
+
+    @_triton.jit
+    def _softmax_fp(out_ptr, in_ptr, fp_ptr, n_cols, BLOCK: tl.constexpr, BUG: tl.constexpr):
+        row = tl.program_id(0)
+        cols = tl.arange(0, BLOCK)
+        off = row * n_cols + cols
+        mi = cols < n_cols
+        x = tl.load(in_ptr + off, mask=mi, other=-float('inf'))
+        masked = x >= 40.0
+        rmax = tl.max(tl.where(masked, -float('inf'), x), axis=0)
+        e = tl.exp(x - rmax) if BUG else tl.where(masked, 0.0, tl.exp(x - rmax))
+        rsum = tl.sum(e, axis=0)
+        tl.store(out_ptr + off, e / rsum, mask=mi)
+        h = tl.full((), 2166136261, tl.uint32)
+        h = (h ^ rmax.to(tl.uint32, bitcast=True)) * tl.full((), 2654435761, tl.uint32)
+        h = (h ^ rsum.to(tl.uint32, bitcast=True)) * tl.full((), 2654435761, tl.uint32)
+        tl.store(fp_ptr + row, h)
+
+    @_triton.jit
+    def _cap_kernel(xp, op, n, BLOCK: tl.constexpr):
+        off = tl.program_id(0) * BLOCK + tl.arange(0, BLOCK)
+        m = off < n
+        v = tl.load(xp + off, mask=m, other=0.0)
+        tl.store(op + off, tl.where(v > 0.5, v * 2.0, v + 1.0), mask=m)
+except Exception:
+    _triton = None
+
 MIX = "2654435761u"
 EPW = 64
 STRIDE = 4 + EPW * 4
@@ -183,26 +215,9 @@ def test_triton_real_softmax_localization():
     """On a real Triton fused-softmax, the per-program fingerprint localizes a
     masking bug to exactly the rows that carry a masked token."""
     triton = pytest.importorskip("triton")
-    import triton.language as tl
     import numpy as np
     import torch
-
-    @triton.jit
-    def sm(out_ptr, in_ptr, fp_ptr, n_cols, BLOCK: tl.constexpr, BUG: tl.constexpr):
-        row = tl.program_id(0)
-        cols = tl.arange(0, BLOCK)
-        off = row * n_cols + cols
-        mi = cols < n_cols
-        x = tl.load(in_ptr + off, mask=mi, other=-float('inf'))
-        masked = x >= 40.0
-        rmax = tl.max(tl.where(masked, -float('inf'), x), axis=0)
-        e = tl.exp(x - rmax) if BUG else tl.where(masked, 0.0, tl.exp(x - rmax))
-        rsum = tl.sum(e, axis=0)
-        tl.store(out_ptr + off, e / rsum, mask=mi)
-        h = tl.full((), 2166136261, tl.uint32)
-        h = (h ^ rmax.to(tl.uint32, bitcast=True)) * tl.full((), 2654435761, tl.uint32)
-        h = (h ^ rsum.to(tl.uint32, bitcast=True)) * tl.full((), 2654435761, tl.uint32)
-        tl.store(fp_ptr + row, h)
+    sm = _softmax_fp
 
     R, C = 2048, 512
     rng = np.random.default_rng(3)
@@ -252,13 +267,7 @@ def test_triton_hook_full_capture(tmp_path):
     th._opt_bin = Path(OPT); th._llvm_link_bin = Path(LLVM_LINK)
     th._hook_triton_stages(verbose=False)
     try:
-        @triton.jit
-        def cap_kernel(xp, op, n, BLOCK: tl.constexpr):
-            off = tl.program_id(0) * BLOCK + tl.arange(0, BLOCK)
-            m = off < n
-            v = tl.load(xp + off, mask=m, other=0.0)
-            tl.store(op + off, tl.where(v > 0.5, v * 2.0, v + 1.0), mask=m)
-
+        cap_kernel = _cap_kernel
         n, BLOCK = 4096, 256
         grid = triton.cdiv(n, BLOCK)
         x = torch.rand(n, device="cuda"); o = torch.empty_like(x)
